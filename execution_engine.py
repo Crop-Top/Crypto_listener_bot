@@ -11,11 +11,12 @@ class ExecutionEngine:
 
     def process_signal(self, signal: dict):
 
-        # 1. Validate format
         if not isinstance(signal, dict):
             return {"error": "Invalid signal format"}
 
-        if signal.get("action") not in ["BUY", "SELL"]:
+        action = signal.get("side")
+
+        if action not in ["BUY", "SELL"]:
             return {"error": "Invalid action"}
 
         symbol = signal.get("symbol")
@@ -23,32 +24,33 @@ class ExecutionEngine:
         if symbol not in ALLOWED_SYMBOLS:
             return {"error": "Symbol not allowed"}
 
-        # 2. Price (TEMP placeholder for now)
-        price = self.mock_price(symbol)
+        price = signal.get("price")  # ✅ FIXED
 
-        # 3. Position sizing (15x logic)
         qty = self.risk.calculate_position_size(self.balance, price)
 
-        # 4. Execute trade
         try:
             result = self.broker.place_order(
                 symbol=symbol,
-                side=signal["action"],
+                side=action,
                 qty=qty,
-                order_type=signal.get("order_type", "MARKET")
+                order_type=signal.get("order_type", "Market")
+            )
+
+            self.broker.bybit.set_tp_sl(
+                symbol=symbol,
+                position_side=action,
+                tp=signal.get("tp"),
+                sl=signal.get("sl")
             )
 
             return {
                 "status": "success",
                 "symbol": symbol,
-                "side": signal["action"],
+                "side": action,
                 "qty": qty,
+                "price": price,
                 "exchange_response": result
             }
 
         except Exception as e:
             return {"status": "error", "message": str(e)}
-
-    def mock_price(self, symbol):
-        import random
-        return random.uniform(20000, 70000)
