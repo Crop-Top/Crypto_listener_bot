@@ -14,48 +14,65 @@ class BybitBroker:
         self.leverage_set = set()
 
     def set_leverage(self, symbol):
-        if symbol in self.leverage_set:
-            return
+        try:
+            response = self.session.set_leverage(
+                category="linear",
+                symbol=symbol,
+                buyLeverage=str(LEVERAGE),
+                sellLeverage=str(LEVERAGE)
+            )
+            print("Leverage response:", response)
 
-        response = self.session.set_leverage(
-            category="linear",
-            symbol=symbol,
-            buyLeverage=str(LEVERAGE),
-            sellLeverage=str(LEVERAGE)
-        )
+        except Exception as e:
+            if "not modified" in str(e).lower():
+                return  # ignore harmless Bybit response
+            print("Leverage set error:", e)
 
-        # 🟢 ignore harmless Bybit error
-        if response.get("retCode") in [0, 110043]:
-            self.leverage_set.add(symbol)
-            return response
-
-        print("Leverage response:", response)
-        self.leverage_set.add(symbol)
-        return response
-
-    def place_order(self, symbol, side, qty, order_type="Market"):
+    def place_order(self, symbol, side, qty, order_type, tp=None, sl=None):
 
         self.set_leverage(symbol)
 
-        response = self.session.place_order(
-            category="linear",
-            symbol=symbol,
-            side="Buy" if side == "BUY" else "Sell",
-            orderType=order_type,
-            qty=str(qty),
-            timeInForce="GoodTillCancel",
-            positionIdx=0
-        )
+        params = {
+            "category": "linear",
+            "symbol": symbol,
+            "side": "Buy" if side == "BUY" else "Sell",
+            "orderType": "Market",
+            "qty": str(qty),
+            "timeInForce": "GoodTillCancel",
+        }
+
+        # IMPORTANT: TP/SL must be strings
+        if tp:
+            params["takeProfit"] = str(tp)
+
+        if sl:
+            params["stopLoss"] = str(sl)
+
+        # optional but recommended
+        params["tpslMode"] = "Full"
+
+        response = self.session.place_order(**params)
 
         return response
     
     def set_tp_sl(self, symbol, position_side, tp, sl):
-        return self.session.set_trading_stop(
-            category="linear",
-            symbol=symbol,
-            takeProfit=str(tp),
-            stopLoss=str(sl),
-            tpTriggerBy="MarkPrice",
-            slTriggerBy="MarkPrice",
-            positionIdx=0
-        )
+
+        try:
+            response = self.session.set_trading_stop(
+                category="linear",
+                symbol=symbol,
+                takeProfit=str(tp),
+                stopLoss=str(sl),
+                tpTriggerBy="LastPrice",
+                slTriggerBy="LastPrice",
+                positionIdx=0  # one-way mode
+            )
+            return response
+
+        except Exception as e:
+            print("TP/SL error:", e)
+            return None
+        
+    def get_balance(self):
+        wallet = self.session.get_wallet_balance(accountType="UNIFIED")
+        return float(wallet["result"]["list"][0]["totalAvailableBalance"])   

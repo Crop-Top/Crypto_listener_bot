@@ -1,5 +1,5 @@
 from risk import RiskEngine
-from config import START_BALANCE, ALLOWED_SYMBOLS
+from config import ALLOWED_SYMBOLS, LEVERAGE
 
 
 class ExecutionEngine:
@@ -7,9 +7,10 @@ class ExecutionEngine:
     def __init__(self, broker):
         self.broker = broker
         self.risk = RiskEngine()
-        self.balance = START_BALANCE
+        self.balance = self.broker.get_balance()
 
     def process_signal(self, signal: dict):
+        balance = self.broker.get_balance()
 
         if not isinstance(signal, dict):
             return {"error": "Invalid signal format"}
@@ -24,11 +25,16 @@ class ExecutionEngine:
         if symbol not in ALLOWED_SYMBOLS:
             return {"error": "Symbol not allowed"}
 
-        price = signal.get("price")  # ✅ FIXED
+        price = signal.get("price")
 
-        qty = self.risk.calculate_position_size(self.balance, price)
+        qty = self.risk.calculate_full_position_size(
+            self.balance,
+            price,
+            LEVERAGE
+        )
 
         try:
+            # 1. PLACE ORDER
             result = self.broker.place_order(
                 symbol=symbol,
                 side=action,
@@ -36,7 +42,8 @@ class ExecutionEngine:
                 order_type=signal.get("order_type", "Market")
             )
 
-            self.broker.bybit.set_tp_sl(
+            # 2. SET TP/SL (IMPORTANT FIX HERE)
+            self.broker.set_tp_sl(
                 symbol=symbol,
                 position_side=action,
                 tp=signal.get("tp"),
