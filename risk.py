@@ -3,7 +3,7 @@ import math
 
 class RiskEngine:
     def calculate_full_position_size(self, balance, price, leverage):
-        usable_balance = balance * 0.95
+        usable_balance = balance * 0.9
         position_value = usable_balance * leverage
         qty = position_value / price
         return round(qty, 3)

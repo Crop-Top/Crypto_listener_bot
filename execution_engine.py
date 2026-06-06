@@ -10,7 +10,6 @@ class ExecutionEngine:
         self.balance = self.broker.get_balance()
 
     def process_signal(self, signal: dict):
-        balance = self.broker.get_balance()
 
         if not isinstance(signal, dict):
             return {"error": "Invalid signal format"}
